@@ -204,8 +204,20 @@ Where:
 
 ## Results
 
+### Table 2: Fusion Strategy Comparison
 
+The `Multi_fusion.py` script generates results in the following format:
 
+| Fusion Type          | Method                                | R² (k)↑       | R² (E)↑       | R² (Mean)↑    | RMSE (k)↓     | RMSE (E)↓     | RMSE (Mean)↓  |
+| -------------------- | ------------------------------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
+| Early Fusion         | Concatenation                         | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX |
+| Early Fusion         | Averaging                             | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX |
+| Latent-Space Aligned | Concatenation                         | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX |
+| Latent-Space Aligned | Averaging                             | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX |
+| Late Fusion          | Weighted Combination (Aligned, α=X.X) | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX |
+| Late Fusion (True)   | Weighted Prediction (Raw, α=X.X)      | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX | X.XXX ± X.XXX |
+
+Values are reported as mean ± std over 10 independent runs.
 
 ## Configuration
 
@@ -234,28 +246,6 @@ GPR_RESTARTS = 10               # Optimizer restarts
 NUM_RUNS = 10                   # Number of independent runs
 MASTER_SEED = 42                # Random seed
 ```
-
-## Citation
-
-If you use this code or methodology in your research, please cite:
-
-```bibtex
-@article{yourname2025multimodal,
-  title={Multimodal Fusion for Polymer Property Prediction Under Data Scarcity},
-  author={Your Name and Collaborators},
-  journal={Journal Name},
-  year={2025},
-  volume={XX},
-  pages={XXX--XXX}
-}
-```
-
-## Contact
-
-For questions or issues, please:
-
-- Open an issue on GitHub
-- Contact: your.email@institution.edu
 
 ## Acknowledgments
 
