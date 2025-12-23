@@ -70,17 +70,6 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Required Dependencies
-
-```
-numpy>=1.21.0
-pandas>=1.3.0
-scikit-learn>=1.0.0
-torch>=1.10.0
-rdkit>=2022.03.1
-scipy>=1.7.0
-```
-
 ## Dataset
 
 The dataset (`DE Data Collection.csv`) contains:
@@ -144,9 +133,7 @@ This will:
    - **Early Fusion**: Concatenation and averaging of raw embeddings
    - **True Late Fusion**: Prediction-level fusion from separate models
    - **Latent-Space Aligned**: Contrastive-aligned embeddings with various fusion methods
-4. Generate comprehensive results table (Table 2 in paper)
-
-**Expected Runtime**: ~30-60 minutes on CPU (varies with hardware)
+4. Generate a comprehensive results table (Table 2 in paper)
 
 ## Reproducibility
 
@@ -172,7 +159,7 @@ To regenerate embeddings from scratch:
 
 1. **TransPolymer**: Use checkpoint in `TransPolymer_checkpoint/`
 2. **GIN**: Use checkpoint in `GIN_checkpoint/`
-3. **PolyBERT**: Requires pre-trained PolyBERT model (contact authors)
+3. **PolyBERT**: Use the publicly available pretrained PolyBERT model hosted on Hugging Face: https://huggingface.co/kuelumbus/polyBERT
 
 ## Methodology
 
@@ -229,9 +216,3 @@ GPR_RESTARTS = 10               # Optimizer restarts
 NUM_RUNS = 10                   # Number of independent runs
 MASTER_SEED = 42                # Random seed
 ```
-
-## Acknowledgments
-
-- TransPolymer and PolyBERT pre-trained models
-- GIN implementation based on [cite original work]
-- Dataset collection and curation: [cite sources]
