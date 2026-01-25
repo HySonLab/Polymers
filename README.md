@@ -5,6 +5,13 @@
 
 This repository contains the official implementation of our multimodal fusion framework for polymer property prediction under data scarcity conditions. Our approach leverages multiple representation learning methods and contrastive alignment to improve property prediction with limited training samples.
 
+## Contributors
+
+* Brijesh LNU
+* Viet Thanh Duy Nguyen
+* Dr. Chengyi Xu (PI / Corresponding Author)
+* Dr. Truong-Son Hy (PI / Corresponding Author)
+
 ## Overview
 
 Predicting polymer properties from molecular structures is challenging when training data is limited. This work addresses data scarcity through:
