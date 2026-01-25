@@ -89,6 +89,8 @@ The dataset (`DE Data Collection.csv`) contains:
 
 Due to the small sample size, we use Leave-One-Out Cross-Validation (LOOCV) for evaluation.
 
+[Dataset Distributions](dataset_distributions.jpg)
+
 ## Usage
 
 ### 1. Single-Modality Baselines
