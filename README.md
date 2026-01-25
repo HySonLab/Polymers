@@ -28,6 +28,8 @@ Predicting polymer properties from molecular structures is challenging when trai
 - 📊 **Comprehensive Evaluation**: Leave-One-Out Cross-Validation (LOOCV) for robust small-data assessment
 - 🎯 **Multi-Property**: Simultaneous prediction of Dielectric Constant and Young's Modulus
 
+![Framework Overview](framework_overview.jpg)
+
 ## Repository Structure
 
 ```
