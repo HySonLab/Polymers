@@ -227,3 +227,17 @@ GPR_RESTARTS = 10               # Optimizer restarts
 NUM_RUNS = 10                   # Number of independent runs
 MASTER_SEED = 42                # Random seed
 ```
+
+## If our dataset or source code is useful, please cite our paper!
+
+```bibtex
+@misc{fnu2026multimodalmachinelearningsoft,
+      title={Multimodal Machine Learning for Soft High-k Elastomers under Data Scarcity}, 
+      author={Brijesh FNU and Viet Thanh Duy Nguyen and Ashima Sharma and Md Harun Rashid Molla and Chengyi Xu and Truong-Son Hy},
+      year={2026},
+      eprint={2601.18032},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2601.18032}, 
+}
+```
