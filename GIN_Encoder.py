@@ -159,7 +159,7 @@ else:
 
 print("Feature shape:", X.shape, "Targets shape:", Y.shape)
 
-# ---------------- Multi-Output GPR: GridSearchCV (5-fold) + LOO metrics ----------------
+# ---------------- Nested LOOCV with standardised PCA grid ----------------
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel, ConstantKernel as C
 from sklearn.multioutput import MultiOutputRegressor
@@ -169,146 +169,100 @@ from sklearn.decomposition import PCA
 from sklearn.model_selection import KFold, GridSearchCV, LeaveOneOut
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# pipeline: scale -> (optional PCA) -> multi-output GPR
-pipe = Pipeline([
-    ("scaler", StandardScaler()),
-    ("pca", PCA()),  # n_components will be tuned
-    ("multi", MultiOutputRegressor(
-        GaussianProcessRegressor(
-            kernel=C(1.0, (1e-3, 1e3)) * RBF(length_scale=10.0, length_scale_bounds=(1e-2, 1e3))
-                   + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-6, 1e1)),
-            normalize_y=True,
-            random_state=SEED,
-            n_restarts_optimizer=3
-        )
-    ))
-])
+PCA_GRID = [5, 10, 15, 20, 25]        # ← standardised across ALL models
+BOOTSTRAP_ITERS = 5000
 
-# small grid — expand if you want
-pca_dims = [20, 50, 100] if X.shape[1] >= 100 else [min(20, X.shape[1]-1), min(50, X.shape[1]-1)]
-param_grid = {
-    "pca__n_components": pca_dims,
-    "multi__estimator__alpha": [1e-10, 1e-6, 1e-3],
-    "multi__estimator__n_restarts_optimizer": [2, 5],
-}
-
-cv5 = KFold(n_splits=5, shuffle=True, random_state=SEED)
-grid = GridSearchCV(
-    estimator=pipe,
-    param_grid=param_grid,
-    cv=cv5,
-    scoring="r2",
-    n_jobs=-1,
-    verbose=0
+kernel = (
+    C(1.0, (1e-3, 1e3)) * RBF(length_scale=10.0, length_scale_bounds=(1e-2, 1e3))
+    + WhiteKernel(noise_level=1.0, noise_level_bounds=(1e-6, 1e1))
 )
 
-grid.fit(X, Y)
-best_model = grid.best_estimator_
-print("Best params:", grid.best_params_)
-print("Best CV R^2:", f"{grid.best_score_:.6f}")
-
-# ---------------- LOO evaluation using the tuned pipeline ----------------
 loo = LeaveOneOut()
 y_true_all, y_pred_all = [], []
-for tr_idx, te_idx in loo.split(X):
-    best_model.fit(X[tr_idx], Y[tr_idx])
+pca_var_ratios = []
+selected_pca_components = []
+
+print(f"\nRunning nested LOOCV ({N} folds, inner 5-fold CV)...")
+for fold_i, (tr_idx, te_idx) in enumerate(loo.split(X)):
+    pipe = Pipeline([
+        ("scaler", StandardScaler()),
+        ("pca", PCA(random_state=SEED)),
+        ("multi", MultiOutputRegressor(
+            GaussianProcessRegressor(
+                kernel=kernel, normalize_y=True,
+                random_state=SEED, n_restarts_optimizer=3
+            )
+        ))
+    ])
+
+    param_grid = {
+        "pca__n_components": PCA_GRID,
+        "multi__estimator__alpha": [1e-10, 1e-6, 1e-3],
+        "multi__estimator__n_restarts_optimizer": [2, 5],
+    }
+
+    cv5 = KFold(n_splits=5, shuffle=True, random_state=SEED)
+    grid = GridSearchCV(pipe, param_grid, cv=cv5, scoring="r2", n_jobs=-1, verbose=0)
+    grid.fit(X[tr_idx], Y[tr_idx])
+
+    best_model = grid.best_estimator_
     y_pred = best_model.predict(X[te_idx])
+
+    pca_var_ratios.append(best_model.named_steps['pca'].explained_variance_ratio_.sum())
+    selected_pca_components.append(best_model.named_steps['pca'].n_components)
+
     y_true_all.append(Y[te_idx][0])
     y_pred_all.append(y_pred[0])
+
+    if (fold_i + 1) % 10 == 0 or fold_i == 0:
+        print(f"  Fold {fold_i+1}/{N}: PCA={best_model.named_steps['pca'].n_components}")
 
 y_true_all = np.vstack(y_true_all)
 y_pred_all = np.vstack(y_pred_all)
 
-mse_overall  = mean_squared_error(y_true_all, y_pred_all)
-mae_overall  = mean_absolute_error(y_true_all, y_pred_all)
-rmse_overall = math.sqrt(mse_overall)
-r2_overall   = r2_score(y_true_all, y_pred_all)
+# PCA summary
+print(f"\nPCA component selection across {N} LOOCV folds:")
+for nc in sorted(set(selected_pca_components)):
+    count = selected_pca_components.count(nc)
+    print(f"  n_components={nc}: selected {count}/{N} times")
+print(f"PCA explained variance: {np.mean(pca_var_ratios)*100:.1f}% ± {np.std(pca_var_ratios)*100:.1f}%")
 
-print("\nOverall Metrics:")
-print(f"LOO-CV on {len(X)} samples:")
-print(f"  MSE  = {mse_overall:.4f}")
-print(f"  MAE  = {mae_overall:.4f}")
-print(f"  RMSE = {rmse_overall:.4f}")
-print(f"  R2   = {r2_overall:.4f}")
-
-# ==========================================================
-#    - R²: jackknife mean ± std from LOOCV predictions
-#    - RMSE: bootstrap mean ± std by resampling LOOCV pairs
-# ==========================================================
-# Per-target LOO metrics (for reference / consistency)
+# Metrics
 mse_per  = mean_squared_error(y_true_all, y_pred_all, multioutput="raw_values")
 rmse_per = np.sqrt(mse_per)
 r2_per   = r2_score(y_true_all, y_pred_all, multioutput="raw_values")
+rmse_mean = float(np.mean(rmse_per))
+r2_mean   = float(np.mean(r2_per))
 
-rmse_mean = float(np.mean(rmse_per))     # table-style mean RMSE = avg of target RMSEs
-r2_mean   = float(np.mean(r2_per))       # table-style mean R2   = avg of target R2s
+print(f"\nPer-target Metrics (LOO, {N} samples):")
+print(f"  k:  RMSE={rmse_per[0]:.4f} | R²={r2_per[0]:.4f}")
+print(f"  E:  RMSE={rmse_per[1]:.4f} | R²={r2_per[1]:.4f}")
+print(f"Mean: RMSE_mean={rmse_mean:.4f} | R²_mean={r2_mean:.4f}")
 
-print("\nPer-target Metrics (LOO):")
-print(f"  k:  RMSE={rmse_per[0]:.4f} | R2={r2_per[0]:.4f}")
-print(f"  E:  RMSE={rmse_per[1]:.4f} | R2={r2_per[1]:.4f}")
-print(f"Mean across targets:")
-print(f"  RMSE_mean={rmse_mean:.4f} | R2_mean={r2_mean:.4f}")
-
-# ---- Jackknife for R² (LOO-based) ----
-N = len(y_true_all)
+# Uncertainty
 r2_k_j, r2_E_j, r2_mean_j = [], [], []
-
 for i in range(N):
-    mask = np.ones(N, dtype=bool)
-    mask[i] = False
+    mask = np.ones(N, dtype=bool); mask[i] = False
     r2k = r2_score(y_true_all[mask, 0], y_pred_all[mask, 0])
     r2e = r2_score(y_true_all[mask, 1], y_pred_all[mask, 1])
-    r2_k_j.append(r2k)
-    r2_E_j.append(r2e)
-    r2_mean_j.append((r2k + r2e) / 2.0)
+    r2_k_j.append(r2k); r2_E_j.append(r2e); r2_mean_j.append((r2k + r2e) / 2.0)
 
-r2_k_j = np.array(r2_k_j)
-r2_E_j = np.array(r2_E_j)
-r2_mean_j = np.array(r2_mean_j)
+r2_k_j, r2_E_j, r2_mean_j = np.array(r2_k_j), np.array(r2_E_j), np.array(r2_mean_j)
 
-r2_k_mean_j, r2_k_std_j = float(r2_k_j.mean()), float(r2_k_j.std(ddof=1))
-r2_E_mean_j, r2_E_std_j = float(r2_E_j.mean()), float(r2_E_j.std(ddof=1))
-r2_mean_mean_j, r2_mean_std_j = float(r2_mean_j.mean()), float(r2_mean_j.std(ddof=1))
-
-# ---- Bootstrap for RMSE (resample LOOCV pairs) ----
-BOOTSTRAP_ITERS = 2000
 rng = np.random.default_rng(SEED)
-
-rmse_k_bs = []
-rmse_E_bs = []
-rmse_mean_bs = []
-
-for _ in range(BOOTSTRAP_ITERS):
-    idx = rng.integers(0, N, size=N)  # resample indices with replacement
-    yt = y_true_all[idx]
-    yp = y_pred_all[idx]
-
-    mse_k = mean_squared_error(yt[:, 0], yp[:, 0])
-    mse_e = mean_squared_error(yt[:, 1], yp[:, 1])
-    rk = math.sqrt(mse_k)
-    re = math.sqrt(mse_e)
-
-    rmse_k_bs.append(rk)
-    rmse_E_bs.append(re)
-    rmse_mean_bs.append((rk + re) / 2.0)  # table-style mean
-
-rmse_k_bs = np.array(rmse_k_bs)
-rmse_E_bs = np.array(rmse_E_bs)
-rmse_mean_bs = np.array(rmse_mean_bs)
-
-rmse_k_mean_b, rmse_k_std_b = float(rmse_k_bs.mean()), float(rmse_k_bs.std(ddof=1))
-rmse_E_mean_b, rmse_E_std_b = float(rmse_E_bs.mean()), float(rmse_E_bs.std(ddof=1))
-rmse_mean_mean_b, rmse_mean_std_b = float(rmse_mean_bs.mean()), float(rmse_mean_bs.std(ddof=1))
+rmse_k_b = np.zeros(BOOTSTRAP_ITERS); rmse_E_b = np.zeros(BOOTSTRAP_ITERS); rmse_mean_b = np.zeros(BOOTSTRAP_ITERS)
+for b in range(BOOTSTRAP_ITERS):
+    idx = rng.integers(0, N, size=N)
+    rk = math.sqrt(mean_squared_error(y_true_all[idx, 0], y_pred_all[idx, 0]))
+    re = math.sqrt(mean_squared_error(y_true_all[idx, 1], y_pred_all[idx, 1]))
+    rmse_k_b[b] = rk; rmse_E_b[b] = re; rmse_mean_b[b] = (rk + re) / 2.0
 
 print("\n==============================")
-print("R²: jackknife mean ± std from LOOCV predictions.")
-print("RMSE: bootstrap mean ± std by resampling LOOCV (y_true, y_pred) pairs.\n")
-
-print(f"R² (k):    {r2_k_mean_j:.4f} ± {r2_k_std_j:.4f}")
-print(f"R² (E):    {r2_E_mean_j:.4f} ± {r2_E_std_j:.4f}")
-print(f"R² (Mean): {r2_mean_mean_j:.4f} ± {r2_mean_std_j:.4f}")
-
-print(f"\nRMSE (k):    {rmse_k_mean_b:.4f} ± {rmse_k_std_b:.4f}")
-print(f"RMSE (E):    {rmse_E_mean_b:.4f} ± {rmse_E_std_b:.4f}")
-print(f"RMSE (Mean): {rmse_mean_mean_b:.4f} ± {rmse_mean_std_b:.4f}")
+print("R²: jackknife mean ± std | RMSE: bootstrap mean ± std\n")
+print(f"R² (k):    {r2_k_j.mean():.4f} ± {r2_k_j.std(ddof=1):.4f}")
+print(f"R² (E):    {r2_E_j.mean():.4f} ± {r2_E_j.std(ddof=1):.4f}")
+print(f"R² (Mean): {r2_mean_j.mean():.4f} ± {r2_mean_j.std(ddof=1):.4f}")
+print(f"\nRMSE (k):    {rmse_k_b.mean():.4f} ± {rmse_k_b.std(ddof=1):.4f}")
+print(f"RMSE (E):    {rmse_E_b.mean():.4f} ± {rmse_E_b.std(ddof=1):.4f}")
+print(f"RMSE (Mean): {rmse_mean_b.mean():.4f} ± {rmse_mean_b.std(ddof=1):.4f}")
 
